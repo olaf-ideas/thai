@@ -75,7 +75,7 @@ All players reveal their cards. The Big Straight is incomplete (missing 10 and K
 | 5 - 10            | 1                |
 
 ### Maximum Number of Cards in Hand
-Maximum values can be calculated using the formula: `min(6, ⌊ 23 / N ⌋)`, where `N` is the number of players.
+Maximum values can be calculated using the formula: `min(6, ⌊ 23 / N ⌋)`, where `N` is the number of players. This prevents from situations where all cards all dealt and the biggest hand type is known.
 
 | Players in Game | Max Cards in Hand |
 |-----------------|-------------------|
