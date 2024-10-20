@@ -61,7 +61,7 @@ Assume Player A lost the previous round. The order of play is Player A - Player 
 - **Player A:** Big Straight (opts for a straight to minimize risk)
 - **Player B:** Check (not confident in higher hands)
 
-All players reveal their cards. The Big Straight is incomplete (missing 10). Player A loses, gaining additional cards. The round ends.
+All players reveal their cards. The Big Straight is incomplete (missing 10 and K). Player A loses, gaining additional cards. The round ends.
 
 ## Tables
 
