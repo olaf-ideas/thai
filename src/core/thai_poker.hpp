@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <array>
-#include <cassert>
+#include <stdexcept>
 
 namespace thai_poker {
 
@@ -13,6 +13,7 @@ using Card = u32; // (suit | (rank << 2))
 constexpr int RANK_NB = 6;
 constexpr int SUIT_NB = 4;
 constexpr int CARD_NB = RANK_NB * SUIT_NB; // 24
+constexpr int BET_NB  = 68;
 constexpr int HAND_SZ = 6;
 constexpr int HAND_NB = 190051; // sum C(24, k) for k=0..6
 
@@ -193,7 +194,7 @@ bool satisfies_bet(Hand h, Bet b) {
             int s = to_i(b) - to_i(Bet::POKER_C);
             return has_royal_poker(h, std::static_cast<Suit>(s));
         default:
-            assert(false && "Unknown bet");
+            throw std::out_of_range("bet");
     }
     return false;
 }

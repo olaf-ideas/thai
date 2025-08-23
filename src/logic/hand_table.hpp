@@ -7,8 +7,8 @@
 namespace thai_poker {
 
 struct HandTable {
-    std::array<int, 1U << CARD_NB> hand_to_index;
-    std::array<Hand, HAND_NB> index_to_hand;
+    int hand_to_index[1U << CARD_NB];
+    Hand index_to_hand[HAND_NB];
 
     HandTable() {
         int idx = 0;
@@ -17,6 +17,9 @@ struct HandTable {
                 hand_to_index[h] = idx;
                 index_to_hand[idx] = h;
                 idx++;
+            }
+            else {
+                hand_to_index[h] = -1;
             }
         }
 
