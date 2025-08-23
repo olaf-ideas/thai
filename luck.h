@@ -10,7 +10,7 @@
 #include "utils.h"
 #include "check.h"
 
-namespace thai_poker {
+namespace ThaiPoker {
 
 namespace luck {
 
