@@ -24,6 +24,7 @@ public:
         if (hand_index < 0 || hand_index >= HAND_NB)
             throw std::out_of_range("hand does not exist");
         int in_hand = popcount(h);
+        // P of satisfied bet = # (possible games with satisfied bet) / # of possible games
         return P_[to_i(b)][card_nb][hand_index]
              * comb_.get_inv(CARD_NB - in_hand, card_nb - in_hand);
     }
@@ -40,6 +41,7 @@ public:
                         H[deck] = 0;
                 }
 
+                // SOS dp
                 for (int bit = 0; bit < CARD_NB; bit++) {
                     for (Hand deck = 0; deck < (1U << CARD_NB); deck++) {
                         if ((deck >> bit & 1) == 0) {
@@ -63,7 +65,7 @@ public:
         FILE* f = std::fopen(path.c_str(), "rb");
         if (!f) throw std::runtime_error("Cannot open " + path);
         char magic[4];
-        if (std::fread(magic, 1, 4, f) != 4 || std::memcpy(magic, "TTP0", 4) != 0) {
+        if (std::fread(magic, 1, 4, f) != 4 || std::memcmp(magic, "TTP0", 4) != 0) {
             std::fclose(f);
             throw std::runtime_error("Bad P table magic");
         }
@@ -101,7 +103,6 @@ private:
     Comb24 comb_;
     HandTable table_;
     int P_[BET_NB][CARD_NB+1][HAND_NB];
-    std::vector<float> data_;
 };
 
 } // namespace thai_poker

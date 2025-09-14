@@ -18,8 +18,8 @@ constexpr int HAND_SZ = 6;
 constexpr int HAND_NB = 190051; // sum C(24, k) for k=0..6
 
 static inline int popcount(u32 v) { return __builtin_popcount(v); }
-static inline bool has_bit(Hand h, int bit) { return (h >> bit) & 1; }
-static inline Hand set_bit(Hand h, int bit) { return h | (1U << bit); }
+// static inline bool has_bit(Hand h, int bit) { return (h >> bit) & 1; }
+// static inline Hand set_bit(Hand h, int bit) { return h | (1U << bit); }
 
 enum class Rank : int {
     RANK_9 = 0,
@@ -155,9 +155,9 @@ inline bool has_royal_poker(Hand h, Suit s) {
     return ((h & ROYAL_POKER[to_i(s)]) == ROYAL_POKER[to_i(s)]);
 }
 
-constexpr bool in_range(Bet lo, Bet hi, Bet b) {
-    return to_i(lo) <= to_i(b) && to_i(b) <= to_i(hi);
-}
+// constexpr bool in_range(Bet lo, Bet hi, Bet b) {
+//     return to_i(lo) <= to_i(b) && to_i(b) <= to_i(hi);
+// }
 
 bool satisfies_bet(Hand h, Bet b) {
     switch (b) {
