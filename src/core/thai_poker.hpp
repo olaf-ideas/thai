@@ -49,12 +49,12 @@ enum class Bet : int {
     CHECK
 };
 
-[[nodiscard]] constexpr int to_i(Rank r) noexcept { return std::static_cast<int>(r); }
-[[nodiscard]] constexpr int to_i(Suit r) noexcept { return std::static_cast<int>(s); }
-[[nodiscard]] constexpr int to_i(Bet  b) noexcept { return std::static_cast<int>(b); }
+[[nodiscard]] constexpr int to_i(Rank r) noexcept { return static_cast<int>(r); }
+[[nodiscard]] constexpr int to_i(Suit r) noexcept { return static_cast<int>(s); }
+[[nodiscard]] constexpr int to_i(Bet  b) noexcept { return static_cast<int>(b); }
 
 // Card encoding: (suit | (rank << 2))
-[[nodiscard]] constexpr Card make_card(Suit s, Rank r) { return to_i(s) | (to_i(r) << 2); }
+[[nodiscard]] constexpr Card make_card(Suit s, Rank r) noexcept { return to_i(s) | (to_i(r) << 2); }
 
 [[nodiscard]] constexpr Hand mask_all_rank(Rank r) {
     return (1U << make_card(Suit::SUIT_C, r)) |
@@ -71,12 +71,12 @@ enum class Bet : int {
            (1U << make_card(s, Rank::RANK_A));
 }
 
-inline constexpr std::array<Hand, RANK_NB> ALL_RANK = {
+static constexpr std::array<Hand, RANK_NB> ALL_RANK = {
     mask_all_rank(Rank::RANK_9), mask_all_rank(Rank::RANK_T), mask_all_rank(Rank::RANK_J),
     mask_all_rank(Rank::RANK_Q), mask_all_rank(Rank::RANK_K), mask_all_rank(Rank::RANK_A)
 };
 
-inline constexpr std::array<Hand, SUIT_NB> ALL_SUIT = {
+static constexpr std::array<Hand, SUIT_NB> ALL_SUIT = {
     mask_all_suit(Suit::SUIT_C), mask_all_suit(Suit::SUIT_D),
     mask_all_suit(Suit::SUIT_H), mask_all_suit(Suit::SUIT_S)
 };
@@ -93,16 +93,16 @@ inline constexpr std::array<Hand, SUIT_NB> ALL_SUIT = {
            (1U << make_card(s, Rank::RANK_A));
 }
 
-inline constexpr std::array<Hand, SUIT_NB> SMALL_POKER = {
+static constexpr std::array<Hand, SUIT_NB> SMALL_POKER = {
     mask_small_poker(Suit::SUIT_C), mask_small_poker(Suit::SUIT_D),
     mask_small_poker(Suit::SUIT_H), mask_small_poker(Suit::SUIT_S)
 };
 
-inline constexpr std::array<Hand, SUIT_NB> ROYAL_POKER = {
+static constexpr std::array<Hand, SUIT_NB> ROYAL_POKER = {
     mask_royal_poker(Suit::SUIT_C), mask_royal_poker(Suit::SUIT_D),
     mask_royal_poker(Suit::SUIT_H), mask_royal_poker(Suit::SUIT_S)
 };
 
-[[nodiscrad]] bool satisfies_bet(Hand h, Bet b) noexcept;
+[[nodiscrad]] bool satisfies_bet(Hand h, Bet b);
 
 } // namespace thai_poker

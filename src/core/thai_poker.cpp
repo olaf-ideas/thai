@@ -46,7 +46,7 @@ namespace {
 
 } // namespace
 
-bool satisfies_bet(Hand h, Bet b) noexcept {
+bool satisfies_bet(Hand h, Bet b) {
     switch (b) {
         case Bet::HIGH_9 ... Bet::HIGH_A:
             int r = to_i(b) - to_i(Bet::HIGH_9);
