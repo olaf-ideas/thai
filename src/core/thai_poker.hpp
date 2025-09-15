@@ -50,7 +50,7 @@ enum class Bet : int {
 };
 
 [[nodiscard]] constexpr int to_i(Rank r) noexcept { return static_cast<int>(r); }
-[[nodiscard]] constexpr int to_i(Suit r) noexcept { return static_cast<int>(s); }
+[[nodiscard]] constexpr int to_i(Suit s) noexcept { return static_cast<int>(s); }
 [[nodiscard]] constexpr int to_i(Bet  b) noexcept { return static_cast<int>(b); }
 
 // Card encoding: (suit | (rank << 2))

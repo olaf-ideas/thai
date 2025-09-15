@@ -1,3 +1,7 @@
 .venv
 build/
 data/
+CMakeCache.txt
+CMakeFiles
+Testing
+.idea
