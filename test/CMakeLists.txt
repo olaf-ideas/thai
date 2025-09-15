@@ -7,7 +7,8 @@ FetchContent_MakeAvailable(googletest)
 
 file(GLOB_RECURSE TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
-add_executable(tests_all ${TEST_SOURCES})
+add_executable(tests_all ${TEST_SOURCES}
+        test_probability_table.cpp)
 target_link_libraries(tests_all PRIVATE thai_poker GTest::gtest_main)
 
 include(GoogleTest)

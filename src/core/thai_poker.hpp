@@ -103,6 +103,6 @@ static constexpr std::array<Hand, SUIT_NB> ROYAL_POKER = {
     mask_royal_poker(Suit::SUIT_H), mask_royal_poker(Suit::SUIT_S)
 };
 
-[[nodiscrad]] bool satisfies_bet(Hand h, Bet b);
+[[nodiscard]] bool satisfies_bet(Hand h, Bet b);
 
 } // namespace thai_poker

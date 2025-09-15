@@ -36,6 +36,9 @@ endif()
 add_subdirectory(src)
 add_subdirectory(apps)
 
+# DATA_DIR available to all code
+add_compile_definitions(DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+
 if(THAI_BUILD_TESTS)
   enable_testing()
   add_subdirectory(test)

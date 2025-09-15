@@ -6,7 +6,8 @@ file(GLOB_RECURSE AI_SOURCES     "${CMAKE_CURRENT_SOURCE_DIR}/ai/*.cpp")
 add_library(thai_core  ${CORE_SOURCES})
 target_include_directories(thai_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(thai_logic ${LOGIC_SOURCES})
+add_library(thai_logic ${LOGIC_SOURCES}
+        logic/probability_table.cpp)
 target_link_libraries(thai_logic PUBLIC thai_core)
 
 if(AI_SOURCES)
