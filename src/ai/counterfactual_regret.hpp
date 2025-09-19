@@ -1,7 +1,8 @@
 #pragma once
 
 #include "../core/thai_poker.hpp"
-#include "../login/hand_table.hpp"
+#include "../logic/hand_table.hpp"
+#include "hand_cluster.hpp"
 
 namespace thai_poker {
 
@@ -52,9 +53,10 @@ public:
 
 private:
 
-    double regret[HAND_NB][HAND_SZ+1][BET_NB+1];
-    double utility[HAND_NB][HAND_SZ+1][BET_NB+1];
+    double regret[HAND_SZ+1][KMEANS_K][BET_NB+1];
+    double utility[HAND_SZ+1][KMEANS_K][BET_NB+1];
     HandTable hand_table;
+    HandCluster hand_cluster;
 
 };
 

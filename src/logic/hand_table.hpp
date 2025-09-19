@@ -6,30 +6,18 @@
 
 namespace thai_poker {
 
-struct HandTable {
-    int hand_to_index[1U << CARD_NB];
-    Hand index_to_hand[HAND_NB];
+class HandTable {
+public:
+    HandTable();
 
-    HandTable() {
-        int idx = 0;
-        for (u32 h = 0; h < (1U << CARD_NB); h++) {
-            if (popcount(h) <= HAND_SZ) {
-                hand_to_index[h] = idx;
-                index_to_hand[idx] = h;
-                idx++;
-            }
-            else {
-                hand_to_index[h] = -1;
-            }
-        }
+    [[nodiscard]] int to_index(Hand h) const;
+    [[nodiscard]] Hand from_index(int idx) const;
 
-        if (idx != HAND_NB) {
-            throw std::runtime_error("HAND_NB mismatch - constant or generation is wrong");
-        }
-    }
+private:
 
-    int to_index(Hand h) const { return hand_to_index[h]; }
-    Hand from_index(int idx) const { return index_to_hand[idx]; }
+    std::array<int, 1U << CARD_NB> hand_to_index{};
+    std::array<Hand, HAND_NB> index_to_hand{};
+
 };
 
 } // namespace thai_poker

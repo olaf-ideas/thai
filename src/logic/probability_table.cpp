@@ -8,7 +8,6 @@ namespace thai_poker {
 
 int ProbabilityTable::P_[BET_NB][CARD_NB+1][HAND_NB]{};
 
-
 int ProbabilityTable::get_comp(Bet b, int card_nb, Hand h) const {
     if (card_nb < 0 || card_nb > CARD_NB)
         throw std::out_of_range("card_nb");
@@ -40,20 +39,17 @@ void ProbabilityTable::build() {
             }
 
             // SOS dp
-            for (int bit = 0; bit < CARD_NB; bit++) {
+            for (int card = 0; card < CARD_NB; card++) {
                 for (Hand deck = 0; deck < (1U << CARD_NB); deck++) {
-                    if ((deck >> bit & 1) == 0) {
-                        H[deck] += H[deck ^ (1 << bit)];
+                    if ((deck >> card & 1) == 0) {
+                        H[deck] += H[deck ^ (1 << card)];
                     }
                 }
             }
 
-            for (Hand hand = 0; hand < (1U << CARD_NB); hand++) {
-                int hand_index = table_.to_index(hand);
-                int in_hand = popcount(hand);
-                if (hand_index != -1 && in_hand <= card_nb) {
-                    P_[bet][card_nb][hand_index] = H[hand];
-                }
+            for (int hand_index = 0; hand_index < HAND_NB; hand_index++) {
+                Hand hand = table_.from_index(hand_index);
+                P_[bet][card_nb][hand_index] = H[hand];
             }
         }
     }

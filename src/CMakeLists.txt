@@ -7,11 +7,14 @@ add_library(thai_core  ${CORE_SOURCES})
 target_include_directories(thai_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(thai_logic ${LOGIC_SOURCES}
-        logic/probability_table.cpp)
+        logic/probability_table.cpp
+        logic/hand_table.cpp)
 target_link_libraries(thai_logic PUBLIC thai_core)
 
 if(AI_SOURCES)
-  add_library(thai_ai ${AI_SOURCES})
+  add_library(thai_ai ${AI_SOURCES}
+          ai/hand_cluster.cpp
+          ai/counterfactual_regret.cpp)
   target_link_libraries(thai_ai PUBLIC thai_core thai_logic)
 endif()
 

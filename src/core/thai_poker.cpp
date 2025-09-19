@@ -32,7 +32,7 @@ namespace {
         && has_high(h, Rank::RANK_Q) && has_high(h, Rank::RANK_K)
         && has_high(h, Rank::RANK_A);
 }
-[[nodiscard]] inline bool has_fullhouse(Hand h, Rank three, Rank two) noexcept {
+[[nodiscard]] inline bool has_full_house(Hand h, Rank three, Rank two) noexcept {
     if (three == two) return false;
     return has_three(h, three) && has_pair(h, two);
 }
@@ -67,8 +67,8 @@ bool satisfies_bet(Hand h, Bet b) {
             three = idx / 5;
             two = idx % 5;
             if (two >= three) two++;
-            return has_fullhouse(h, static_cast<Rank>(three), 
-                                    static_cast<Rank>(two));
+            return has_full_house(h, static_cast<Rank>(three),
+                                     static_cast<Rank>(two));
         case Bet::FLUSH_C ... Bet::FLUSH_S:
             s = to_i(b) - to_i(Bet::FLUSH_C);
             return has_flush(h, static_cast<Suit>(s));
@@ -79,7 +79,7 @@ bool satisfies_bet(Hand h, Bet b) {
             s = to_i(b) - to_i(Bet::POKER_C);
             return has_straight_flush_any(h, static_cast<Suit>(s));
         case Bet::ROYAL_POKER_C ... Bet::ROYAL_POKER_S:
-            s = to_i(b) - to_i(Bet::POKER_C);
+            s = to_i(b) - to_i(Bet::ROYAL_POKER_C);
             return has_royal_straight_flush(h, static_cast<Suit>(s));
         default:
             throw std::out_of_range("bet");

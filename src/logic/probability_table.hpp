@@ -13,6 +13,7 @@ class ProbabilityTable {
 public:
     static constexpr int VERSION = 1;
 
+    ProbabilityTable() : comb_(), table_() { }
     ProbabilityTable(const ProbabilityTable&) = delete;
     ProbabilityTable& operator=(const ProbabilityTable&) = delete;
 
@@ -28,8 +29,6 @@ public:
     void save(const std::string& path) const;
 
 private:
-
-    ProbabilityTable() = default;
 
     Comb24 comb_;
     HandTable table_;
