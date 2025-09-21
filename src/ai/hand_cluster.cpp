@@ -15,23 +15,24 @@ double HandCluster::Point::distance(HandCluster::Point const& other) const {
     return std::sqrt(dist);
 }
 
-std::pair<int, Hand> HandCluster::Cluster::sample_hand() const {
-    int which = std::uniform_int_distribution<int>(0, blocks_prefix_sum.back())(rng);
+std::pair<int, Hand> HandCluster::sample_hand(Cluster const& cluster) const {
+    int which = std::uniform_int_distribution<int>(0, cluster.blocks_prefix_sum.back())(rng);
 
-    int block = static_cast<int>(std::lower_bound(blocks_prefix_sum.begin(), blocks_prefix_sum.end(), which)
-                                - blocks_prefix_sum.begin());
+    auto const& prefix_sums = cluster.blocks_prefix_sum;
+    int block = static_cast<int>(std::lower_bound(prefix_sums.begin(), prefix_sums.end(), which)
+                                - prefix_sums.begin());
 
     if (block > 0) {
-        which -= blocks_prefix_sum[block - 1];
+        which -= prefix_sums[block - 1];
     }
 
     return std::make_pair(
         block,
-        hand_table.from_index(blocks[block][which].hand_index)
+        hand_table.from_index(cluster.blocks[block][which].hand_index)
     );
 }
 
-HandCluster::HandCluster() : prob_table(), hand_table(), rng(2137) {
+HandCluster::HandCluster() : prob_table(ProbabilityTable::instance()), hand_table(), rng(2137) {
     build_kmeans();
     build_clusters_ds();
 }

@@ -8,6 +8,15 @@ namespace thai_poker {
 
 int ProbabilityTable::P_[BET_NB][CARD_NB+1][HAND_NB]{};
 
+ProbabilityTable::ProbabilityTable(const std::string &filename) {
+    load(filename);
+}
+
+ProbabilityTable& ProbabilityTable::instance() {
+    static ProbabilityTable singleton(std::string(DATA_DIR) + "/TTP0.bin");
+    return singleton;
+}
+
 int ProbabilityTable::get_comp(Bet b, int card_nb, Hand h) const {
     if (card_nb < 0 || card_nb > CARD_NB)
         throw std::out_of_range("card_nb");
@@ -55,9 +64,9 @@ void ProbabilityTable::build() {
     }
 }
 
-void ProbabilityTable::load(const std::string& path) {
+bool ProbabilityTable::load(const std::string& path) {
     FILE* f = std::fopen(path.c_str(), "rb");
-    if (!f) throw std::runtime_error("Cannot open " + path);
+    if (!f) return false;
     char magic[4];
     if (std::fread(magic, 1, 4, f) != 4 || std::memcmp(magic, "TTP0", 4) != 0) {
         std::fclose(f);
@@ -77,6 +86,7 @@ void ProbabilityTable::load(const std::string& path) {
     std::fclose(f);
     if (got != need)
         throw std::runtime_error("Could not read P table from " + path);
+    return true;
 }
 
 void ProbabilityTable::save(const std::string& path) const {

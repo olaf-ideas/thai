@@ -32,7 +32,7 @@ class HandCluster {
         std::vector<int> blocks_prefix_sum;
         std::vector<Point> centers;
 
-        std::pair<int, int> sample_hand() const;
+        std::pair<int, Hand> sample_hand() const;
     };
 
 public:
@@ -46,9 +46,11 @@ public:
 
 private:
 
-    ProbabilityTable prob_table;
+    std::pair<int, Hand> sample_hand(Cluster const&) const;
+
+    ProbabilityTable& prob_table;
     HandTable hand_table;
-    std::mt19937 rng;
+    std::mt19937_64 rng;
 
     std::vector<Cluster> clusters;
 };

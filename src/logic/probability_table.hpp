@@ -13,19 +13,16 @@ class ProbabilityTable {
 public:
     static constexpr int VERSION = 1;
 
-    ProbabilityTable() : comb_(), table_() { }
+    ProbabilityTable(const std::string&);
     ProbabilityTable(const ProbabilityTable&) = delete;
     ProbabilityTable& operator=(const ProbabilityTable&) = delete;
 
-    static ProbabilityTable& instance() {
-        static ProbabilityTable singleton;
-        return singleton;
-    }
+    static ProbabilityTable& instance();
 
     [[nodiscard]] double get_prob(Bet b, int card_nb, Hand h) const;
     [[nodiscard]] int get_comp(Bet b, int card_nb, Hand h) const;
     void build();
-    void load(const std::string& path);
+    bool load(const std::string& path);
     void save(const std::string& path) const;
 
 private:
