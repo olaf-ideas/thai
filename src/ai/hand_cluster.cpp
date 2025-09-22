@@ -3,6 +3,7 @@
 #include <random>
 #include <array>
 #include <iostream>
+#include <cassert>
 
 namespace thai_poker {
 
@@ -12,7 +13,7 @@ double HandCluster::Point::distance(HandCluster::Point const& other) const {
         const double diff = p[bet] - other.p[bet];
         dist += diff * diff;
     }
-    return std::sqrt(dist);
+    return std::sqrt(std::max<double>(0.0, dist));
 }
 
 std::pair<int, Hand> HandCluster::sample_hand(Cluster const& cluster) {
@@ -58,18 +59,20 @@ void HandCluster::build_kmeans() {
         std::vector<Point> kmeans;
         int kmeans_size = KMEANS_K;
         if (data.size() < KMEANS_K) {
-            kmeans_size = static_cast<int>(kmeans.size());
             kmeans = data;
+            kmeans_size = static_cast<int>(kmeans.size());
         }
-
-        for (int i = 0; i < kmeans_size; i++) {
-            Point center{};
-            for (int bet = 0; bet < BET_NB; bet++) {
-                center.p[bet] = std::uniform_real_distribution<double>(0, 1)(rng);
+        else {
+            for (int i = 0; i < kmeans_size; i++) {
+                Point center{};
+                for (int bet = 0; bet < BET_NB; bet++) {
+                    center.p[bet] = std::uniform_real_distribution<double>(0, 1)(rng);
+                }
+                kmeans.push_back(center);
             }
-            kmeans.push_back(center);
         }
 
+        assert(kmeans_size == static_cast<int>(kmeans.size()));
         for (int iter = 0; iter < KMEANS_ITER; iter++) {
             double cum_error = 0;
             std::vector<Point> center_sum(kmeans_size);
@@ -100,6 +103,9 @@ void HandCluster::build_kmeans() {
                     kmeans[center].p[bet] = center_sum[center].p[bet] / center_cnt[center];
                 }
             }
+
+            if (cum_error < 1e-7)
+                break;
         }
 
         Cluster c;
@@ -110,7 +116,7 @@ void HandCluster::build_kmeans() {
         for (Point const& point : data) {
             int best_center = -1;
             double best_error = std::numeric_limits<double>::max();
-            for (int center = 0; center < KMEANS_K; center++) {
+            for (int center = 0; center < kmeans_size; center++) {
                 double error = point.distance(kmeans[center]);
                 if (best_error > error) {
                     best_error = error;

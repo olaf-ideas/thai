@@ -15,6 +15,7 @@ ProbabilityTable::ProbabilityTable(const std::string &filename) : table_(HandTab
     else {
         std::cerr << "Building probability table (~4-10min)" << std::endl;
         build();
+        save(filename);
     }
 }
 
