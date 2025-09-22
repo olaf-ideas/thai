@@ -28,7 +28,7 @@ public:
 private:
 
     Comb24 comb_;
-    HandTable table_;
+    HandTable const& table_;
     static int P_[BET_NB][CARD_NB+1][HAND_NB];
 };
 

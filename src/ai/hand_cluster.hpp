@@ -6,7 +6,6 @@
 
 #include "../logic/probability_table.hpp"
 
-constexpr int MIN_CLUSTER_SIZE = 4;
 constexpr int KMEANS_K = 4000;
 constexpr int KMEANS_ITER = 100;
 
@@ -31,8 +30,6 @@ class HandCluster {
         std::vector<std::vector<Point>> blocks;
         std::vector<int> blocks_prefix_sum;
         std::vector<Point> centers;
-
-        std::pair<int, Hand> sample_hand() const;
     };
 
 public:
@@ -42,14 +39,14 @@ public:
     void build_kmeans();
     void build_clusters_ds();
 
-    [[nodiscard]] GameSample sample(int, int) const;
+    [[nodiscard]] GameSample sample(int, int);
 
 private:
 
-    std::pair<int, Hand> sample_hand(Cluster const&) const;
+    std::pair<int, Hand> sample_hand(Cluster const&);
 
-    ProbabilityTable& prob_table;
-    HandTable hand_table;
+    ProbabilityTable const& prob_table;
+    HandTable const& hand_table;
     std::mt19937_64 rng;
 
     std::vector<Cluster> clusters;

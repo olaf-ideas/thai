@@ -1,32 +1,333 @@
-import numpy as np
-import struct
+#!/usr/bin/env python3
+"""
+GPU-accelerated visualization helpers for Thai Poker TTP0 table.
 
-def load_ttp0(path):
+Features:
+- Load TTP0.bin written by your C++ ProbabilityTable::save().
+- Bar chart: 68-d bet vector for (hand_idx, card_nb).
+- Heatmap: bets (rows) vs. card_nb (cols) for a hand.
+- PCA (on GPU via PyTorch): project many hands' 68-d vectors to 2D.
+
+Optionally convert counts -> probabilities if you provide hand sizes (or bitmasks).
+"""
+
+import argparse
+import os
+import struct
+import math
+from pathlib import Path
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# GPU is optional but recommended
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except Exception:
+    TORCH_AVAILABLE = False
+
+
+# ----------------------------
+# TTP0 loader (memmap payload)
+# ----------------------------
+
+def load_ttp0_memmap(path: str):
+    """
+    Returns: (P, header)
+      P: memmap of shape (bets, cards, hands), dtype=int32
+      header: dict with version, bets, cards, hands, data_offset
+    """
+    path = str(path)
     with open(path, "rb") as f:
         magic = f.read(4)
         if magic != b"TTP0":
-            raise ValueError("bad magic")
-        version, bets, cards, hands = struct.unpack("<4I", f.read(16))
-        print("version", version, "bets", bets, "cards", cards, "hands", hands)
-        data = np.fromfile(f, dtype=np.int32, count=bets*cards*hands)
-    return data.reshape((bets, cards, hands))
+            raise ValueError(f"Bad magic in {path}: {magic!r}")
+        header = f.read(16)
+        if len(header) != 16:
+            raise ValueError("Short header")
+        version, bets, cards, hands = struct.unpack("<4I", header)
+        data_offset = f.tell()
+    # memmap the int32 payload
+    P = np.memmap(path, dtype="<i4", mode="r",
+                  offset=data_offset, shape=(bets, cards, hands))
+    return P, {"version": version, "bets": bets, "cards": cards, "hands": hands, "data_offset": data_offset}
 
-P = load_ttp0("data/TTP0.bin")
 
-from sklearn.decomposition import PCA
+def detect_check_index(P: np.ndarray) -> int:
+    """Find the CHECK row (all zeros)."""
+    # Sum across (cards, hands)
+    row_sums = np.array(P.reshape(P.shape[0], -1).sum(axis=1))
+    zeros = np.where(row_sums == 0)[0]
+    if len(zeros) == 1:
+        return int(zeros[0])
+    # Fallback: pick argmin
+    return int(np.argmin(row_sums))
 
-card_nb = 5
-sample_idx = np.random.choice(P.shape[2], size=5000, replace=False)
-X = P[:68, card_nb, sample_idx].T   # shape (n_samples, 68)
 
-X = X / (X.sum(axis=1, keepdims=True) + 1e-9)  # normalize
+# ----------------------------
+# Optional hand sizes / masks
+# ----------------------------
 
-pca = PCA(n_components=2)
-coords = pca.fit_transform(X)
+def load_hand_sizes_or_masks(hand_sizes: str | None, hand_masks: str | None, hand_nb: int) -> np.ndarray | None:
+    """
+    Returns hand_sizes (uint8 length hand_nb) or None if not provided.
+    If masks are provided (uint32 bitmasks), popcount to sizes.
+    """
+    if hand_sizes:
+        hs = np.load(hand_sizes)
+        if hs.shape[0] != hand_nb:
+            raise ValueError(f"hand_sizes length {hs.shape[0]} != HAND_NB {hand_nb}")
+        return hs.astype(np.uint8, copy=False)
+    if hand_masks:
+        masks = np.load(hand_masks)
+        if masks.shape[0] != hand_nb:
+            raise ValueError(f"hand_masks length {masks.shape[0]} != HAND_NB {hand_nb}")
+        # popcount lower 24 bits
+        # view as uint8 and count bits
+        b = np.unpackbits(masks.view(np.uint8)).reshape(-1, 32)[:, :24]
+        return b.sum(axis=1).astype(np.uint8)
+    return None
 
-plt.figure(figsize=(6,6))
-plt.scatter(coords[:,0], coords[:,1], s=2, alpha=0.5)
-plt.xlabel("PC1")
-plt.ylabel("PC2")
-plt.title("PCA projection of 68-D bet vectors")
-plt.show()
+
+# ----------------------------
+# Combinatorics for probability normalization
+# ----------------------------
+
+def precompute_combs(nmax=24):
+    comb = np.zeros((nmax + 1, nmax + 1), dtype=np.float64)
+    for n in range(nmax + 1):
+        comb[n, 0] = 1.0
+        comb[n, n] = 1.0
+        for k in range(1, n):
+            comb[n, k] = comb[n - 1, k - 1] + comb[n - 1, k]
+    return comb
+
+
+def counts_to_probs(counts_68: np.ndarray, in_hand: int, card_nb: int, comb: np.ndarray) -> np.ndarray:
+    """
+    counts_68: (68,) or (N,68) array of integer counts for a fixed card_nb for one or many hands.
+    Returns probabilities by dividing by C(24-in_hand, card_nb-in_hand).
+    """
+    denom = comb[24 - in_hand, card_nb - in_hand]
+    if np.any(denom == 0) or (card_nb - in_hand) < 0:
+        # invalid combination (hand has more cards than card_nb)
+        return np.zeros_like(counts_68, dtype=np.float64)
+    return counts_68.astype(np.float64) / denom
+
+
+# ----------------------------
+# GPU PCA via PyTorch
+# ----------------------------
+
+def pca_torch(X: np.ndarray, device: str = "cuda", whiten: bool = False, n_components: int = 2):
+    """
+    X: (N, D) float32/float64 on CPU.
+    Returns: (coords (N, n_components), components (D, n_components), explained_var)
+    """
+    if not TORCH_AVAILABLE:
+        raise RuntimeError("PyTorch not available. Install torch for GPU PCA.")
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        print("[warn] CUDA not available. Falling back to CPU.")
+        device = "cpu"
+
+    # to torch
+    X_t = torch.from_numpy(np.asarray(X, dtype=np.float32))
+    X_t = X_t.to(device)
+
+    # center columns
+    mean = X_t.mean(dim=0, keepdim=True)
+    Xc = X_t - mean
+
+    # SVD on centered data
+    # For tall matrices (N >= D), directly SVD is fine.
+    # coords = Xc @ V[:, :k]
+    U, S, Vh = torch.linalg.svd(Xc, full_matrices=False)  # Vh: (D,D)
+    V = Vh.transpose(0, 1)
+
+    comps = V[:, :n_components]              # (D, k)
+    coords = Xc @ comps                      # (N, k)
+    # explained variance (like sklearn): S^2 / (N-1)
+    N = Xc.shape[0]
+    explained_var = (S * S) / max(1, (N - 1))
+    exp_var = explained_var[:n_components].detach().cpu().numpy()
+    comps_np = comps.detach().cpu().numpy()
+    coords_np = coords.detach().cpu().numpy()
+
+    if whiten:
+        coords_np /= np.sqrt(exp_var + 1e-9)
+
+    return coords_np, comps_np, exp_var
+
+
+# ----------------------------
+# Visualization helpers
+# ----------------------------
+
+def ensure_out_dir(out_dir: str) -> Path:
+    p = Path(out_dir)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def plot_bar(vec68: np.ndarray, title: str, out_file: Path | None):
+    plt.figure(figsize=(12, 4))
+    plt.bar(np.arange(len(vec68)), vec68, width=0.9)
+    plt.xlabel("Bet index (0..67)")
+    plt.ylabel("Value")
+    plt.title(title)
+    plt.tight_layout()
+    if out_file:
+        plt.savefig(out_file, dpi=160)
+        plt.close()
+    else:
+        plt.show()
+
+
+def plot_heatmap(mat_bets_by_cards: np.ndarray, title: str, out_file: Path | None):
+    plt.figure(figsize=(10, 6))
+    plt.imshow(mat_bets_by_cards, aspect="auto", cmap="viridis")
+    plt.colorbar(label="Value")
+    plt.ylabel("Bet index (0..67)")
+    plt.xlabel("card_nb (0..24)")
+    plt.title(title)
+    plt.tight_layout()
+    if out_file:
+        plt.savefig(out_file, dpi=160)
+        plt.close()
+    else:
+        plt.show()
+
+
+def plot_scatter(coords2d: np.ndarray, color=None, title: str = "", out_file: Path | None = None, s=4):
+    plt.figure(figsize=(7, 6))
+    if color is None:
+        plt.scatter(coords2d[:, 0], coords2d[:, 1], s=s, alpha=0.6)
+    else:
+        sc = plt.scatter(coords2d[:, 0], coords2d[:, 1], c=color, s=s, cmap="tab10", alpha=0.7)
+        plt.colorbar(sc, label="group")
+    plt.title(title)
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.tight_layout()
+    if out_file:
+        plt.savefig(out_file, dpi=160)
+        plt.close()
+    else:
+        plt.show()
+
+
+# ----------------------------
+# Main CLI
+# ----------------------------
+
+def main():
+    ap = argparse.ArgumentParser(description="GPU-accelerated visualization for Thai Poker TTP0.bin")
+    ap.add_argument("--file", default="data/TTP0.bin", help="Path to TTP0.bin")
+    ap.add_argument("--out", default="viz_out", help="Output directory for plots")
+    ap.add_argument("--device", default="cuda", help="cuda or cpu")
+    ap.add_argument("--hand-sizes", help="Optional .npy of shape (HAND_NB,) with uint8 sizes (0..6)")
+    ap.add_argument("--hand-masks", help="Optional .npy of shape (HAND_NB,) with uint32 bitmasks; popcount(24) -> size")
+    ap.add_argument("--card-nb", type=int, default=6, help="card_nb (0..24) to visualize (for bar/PCA)")
+    ap.add_argument("--hand-idx", type=int, default=1234, help="hand index to visualize (for bar/heatmap)")
+    ap.add_argument("--pca-sample", type=int, default=20000, help="number of hands to sample for PCA (per card_nb)")
+    ap.add_argument("--seed", type=int, default=42, help="random seed")
+
+    args = ap.parse_args()
+    out_dir = ensure_out_dir(args.out)
+
+    print(f"[info] Loading TTP0: {args.file}")
+    P, hdr = load_ttp0_memmap(args.file)
+    BETS, CARDS, HANDS = hdr["bets"], hdr["cards"], hdr["hands"]
+    print(f"[info] Header: version={hdr['version']} bets={BETS} cards={CARDS} hands={HANDS}")
+
+    check_idx = detect_check_index(P)
+    print(f"[info] Detected CHECK row index = {check_idx}")
+
+    # optional hand sizes
+    hand_sizes = load_hand_sizes_or_masks(args.hand_sizes, args.hand_masks, HANDS)
+    comb = precompute_combs(24) if hand_sizes is not None else None
+
+    # --------- BAR: 68-d vector for one hand at given card_nb ---------
+    if not (0 <= args.card_nb < CARDS):
+        raise ValueError(f"card_nb out of range [0..{CARDS-1}]")
+    if not (0 <= args.hand_idx < HANDS):
+        raise ValueError(f"hand_idx out of range [0..{HANDS-1}]")
+
+    # counts for that (hand, card_nb), drop CHECK
+    vec_counts = P[:, args.card_nb, args.hand_idx].astype(np.float64)
+    vec_counts = np.delete(vec_counts, check_idx)  # 68-d
+
+    if comb is not None:
+        in_hand = int(hand_sizes[args.hand_idx])
+        vec = counts_to_probs(vec_counts, in_hand, args.card_nb, comb)
+        ylab = "Probability"
+    else:
+        vec = vec_counts
+        ylab = "Count"
+
+    plot_bar(
+        vec,
+        title=f"Hand {args.hand_idx}, card_nb={args.card_nb} ({ylab})",
+        out_file=out_dir / f"bar_hand{args.hand_idxXz}_c{args.card_nb}.png"
+    )
+    print(f"[done] Saved bar chart → {out_dir / f'bar_hand{args.hand_idx}_c{args.card_nb}.png'}")
+
+    # --------- HEATMAP: bets x card_nb for one hand ----------
+    # Build (68, CARDS) matrix for the same hand
+    mat = P[:, :, args.hand_idx].astype(np.float64)    # (BETS, CARDS)
+    mat = np.delete(mat, check_idx, axis=0)            # (68, CARDS)
+
+    if comb is not None:
+        # Convert column-wise to probabilities using the same in_hand for each card_nb
+        probs = np.zeros_like(mat, dtype=np.float64)
+        in_hand = int(hand_sizes[args.hand_idx])
+        for c in range(CARDS):
+            probs[:, c] = counts_to_probs(mat[:, c], in_hand, c, comb)
+        mat_to_plot = probs
+        vtitle = "Probability"
+    else:
+        mat_to_plot = mat
+        vtitle = "Count"
+
+    plot_heatmap(
+        mat_to_plot,
+        title=f"Hand {args.hand_idx}: bets×card_nb ({vtitle})",
+        out_file=out_dir / f"heatmap_hand{args.hand_idx}.png"
+    )
+    print(f"[done] Saved heatmap → {out_dir / f'heatmap_hand{args.hand_idx}.png'}")
+
+    # --------- PCA (GPU): sample many hands for this card_nb ----------
+    rng = np.random.default_rng(args.seed)
+    sample_n = min(args.pca_sample, HANDS)
+    sample_idx = rng.choice(HANDS, size=sample_n, replace=False)
+
+    X = P[:, args.card_nb, sample_idx].astype(np.float32).T  # (N, BETS)
+    # drop CHECK
+    X = np.delete(X, check_idx, axis=1)                      # (N, 68)
+
+    # normalize rows (optional): sum-to-1 to focus on relative profile
+    row_sums = X.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1.0
+    Xn = X / row_sums
+
+    # Z-score columns (center & scale) to balance
+    col_mean = Xn.mean(axis=0, keepdims=True)
+    col_std = Xn.std(axis=0, keepdims=True)
+    col_std[col_std < 1e-12] = 1.0
+    Xz = (Xn - col_mean) / col_std
+
+    device = args.device if TORCH_AVAILABLE else "cpu"
+    coords2d, comps, exp_var = pca_torch(Xz, device=device, whiten=False, n_components=2)
+    title = f"PCA (card_nb={args.card_nb}, N={sample_n}) – Var: {exp_var.sum():.3f}"
+    # color by in_hand if available
+    color = hand_sizes[sample_idx] if hand_sizes is not None else None
+    plot_scatter(coords2d, color=color, title=title,
+                 out_file=out_dir / f"pca_c{args.card_nb}_N{sample_n}.png", s=6)
+    print(f"[done] Saved PCA scatter → {out_dir / f'pca_c{args.card_nb}_N{sample_n}.png'}")
+
+    print("[all done]")
+
+
+if __name__ == "__main__":
+    main()

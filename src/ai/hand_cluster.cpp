@@ -15,7 +15,7 @@ double HandCluster::Point::distance(HandCluster::Point const& other) const {
     return std::sqrt(dist);
 }
 
-std::pair<int, Hand> HandCluster::sample_hand(Cluster const& cluster) const {
+std::pair<int, Hand> HandCluster::sample_hand(Cluster const& cluster) {
     int which = std::uniform_int_distribution<int>(0, cluster.blocks_prefix_sum.back())(rng);
 
     auto const& prefix_sums = cluster.blocks_prefix_sum;
@@ -32,13 +32,13 @@ std::pair<int, Hand> HandCluster::sample_hand(Cluster const& cluster) const {
     );
 }
 
-HandCluster::HandCluster() : prob_table(ProbabilityTable::instance()), hand_table(), rng(2137) {
+HandCluster::HandCluster() : prob_table(ProbabilityTable::instance()), hand_table(HandTable::instance()), rng(2137) {
     build_kmeans();
     build_clusters_ds();
 }
 
 void HandCluster::build_kmeans() {
-    for (int hand_size = MIN_CLUSTER_SIZE; hand_size <= HAND_SZ; hand_size++) {
+    for (int hand_size = 0; hand_size <= HAND_SZ; hand_size++) {
         std::vector<Point> data;
         for (int opp_size = 1; opp_size <= HAND_SZ; opp_size++) {
             for (int hand_index = 0; hand_index < HAND_NB; hand_index++) {
@@ -140,7 +140,7 @@ void HandCluster::build_clusters_ds() {
     }
 }
 
-GameSample HandCluster::sample(int h1_size, int h2_size) const {
+GameSample HandCluster::sample(int h1_size, int h2_size) {
     Cluster const& c1 = clusters.at(h1_size);
     Cluster const& c2 = clusters.at(h2_size);
 
@@ -148,8 +148,8 @@ GameSample HandCluster::sample(int h1_size, int h2_size) const {
     Hand h1_hand, h2_hand;
 
     do {
-        std::tie(h1_block, h1_hand) = c1.sample_hand();
-        std::tie(h2_block, h2_hand) = c2.sample_hand();
+        std::tie(h1_block, h1_hand) = sample_hand(c1);
+        std::tie(h2_block, h2_hand) = sample_hand(c2);
     }
     while ((h1_hand & h2_hand) != 0);
 

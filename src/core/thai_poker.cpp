@@ -54,7 +54,7 @@ bool satisfies_bet(Hand h, Bet b) {
             return has_high(h, static_cast<Rank>(r));
         case Bet::PAIR_9 ... Bet::PAIR_A:
             r = to_i(b) - to_i(Bet::PAIR_9);
-            return has_high(h, static_cast<Rank>(r));
+            return has_pair(h, static_cast<Rank>(r));
         case Bet::LOW_STRAIGHT:
             return has_low_straight(h);
         case Bet::HIGH_STRAIGHT:

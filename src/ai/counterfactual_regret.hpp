@@ -10,9 +10,7 @@ class CounterfacturalRegretMinimization {
 
 public:
 
-    CounterfacturalRegretMinimization() {
-
-    }
+    CounterfacturalRegretMinimization() : hand_table(HandTable::instance()) { }
 
     void trainIteration(int, Hand, Hand);
     void train();
@@ -21,7 +19,7 @@ private:
 
     double regret[HAND_SZ+1][KMEANS_K][BET_NB+1];
     double utility[HAND_SZ+1][KMEANS_K][BET_NB+1];
-    HandTable hand_table;
+    HandTable const& hand_table;
     HandCluster hand_cluster;
 
 };

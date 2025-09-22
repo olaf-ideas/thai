@@ -8,8 +8,14 @@ namespace thai_poker {
 
 int ProbabilityTable::P_[BET_NB][CARD_NB+1][HAND_NB]{};
 
-ProbabilityTable::ProbabilityTable(const std::string &filename) {
-    load(filename);
+ProbabilityTable::ProbabilityTable(const std::string &filename) : table_(HandTable::instance()) {
+    if (load(filename)) {
+        std::cerr << "Probability table loaded" << std::endl;
+    }
+    else {
+        std::cerr << "Building probability table (~4-10min)" << std::endl;
+        build();
+    }
 }
 
 ProbabilityTable& ProbabilityTable::instance() {

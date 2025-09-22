@@ -2,6 +2,13 @@
 
 namespace thai_poker {
 
+std::array<int, 1U << CARD_NB> HandTable::hand_to_index{};
+std::array<Hand, HAND_NB> HandTable::index_to_hand{};
+
+HandTable& HandTable::instance() {
+    static HandTable singleton;
+    return singleton;
+}
 
 HandTable::HandTable() {
     int idx = 0;
