@@ -6,8 +6,8 @@
 
 #include "../logic/probability_table.hpp"
 
-constexpr int KMEANS_K = 4000;
-constexpr int KMEANS_ITER = 100;
+constexpr int KMEANS_K = 7000;
+constexpr int KMEANS_ITER = 10;
 
 namespace thai_poker {
 
@@ -49,7 +49,7 @@ private:
     HandTable const& hand_table;
     std::mt19937_64 rng;
 
-    std::vector<Cluster> clusters;
+    std::array<std::array<Cluster, CARD_NB+1>, HAND_SZ+1> clusters;
 };
 
 } // thai_poker
