@@ -7,8 +7,7 @@
 using namespace thai_poker;
 
 TEST(HandClusterTest, SampleAndDebug) {
-    std::cerr << "Im here" << std::endl;
-    HandCluster hc;
+    HandCluster& hc = HandCluster::instance();
 
     GameSample gs = hc.sample(3, 5);
 

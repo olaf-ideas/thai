@@ -7,7 +7,7 @@
 #include "../logic/probability_table.hpp"
 
 constexpr int KMEANS_K = 7000;
-constexpr int KMEANS_ITER = 10;
+constexpr int KMEANS_ITER = 2;
 
 namespace thai_poker {
 
@@ -33,17 +33,25 @@ class HandCluster {
     };
 
 public:
+    static constexpr int VERSION = 1;
 
-    HandCluster();
+    HandCluster(const std::string&);
+    HandCluster(const HandCluster&) = delete;
+    HandCluster& operator=(const HandCluster&) = delete;
+
+    static HandCluster& instance();
 
     void build_kmeans();
     void build_clusters_ds();
 
     [[nodiscard]] GameSample sample(int, int);
 
+    bool load(const std::string& path);
+    void save(const std::string& path) const;
+
 private:
 
-    std::pair<int, Hand> sample_hand(Cluster const&);
+    [[nodiscard]] std::pair<int, Hand> sample_hand(Cluster const&);
 
     ProbabilityTable const& prob_table;
     HandTable const& hand_table;

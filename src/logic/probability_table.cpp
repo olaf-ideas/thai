@@ -77,8 +77,9 @@ bool ProbabilityTable::load(const std::string& path) {
     char magic[4];
     if (std::fread(magic, 1, 4, f) != 4 || std::memcmp(magic, "TTP0", 4) != 0) {
         std::fclose(f);
-        throw std::runtime_error("Bad P table magic");
+        return false;
     }
+
     u32 version=0, bets=0, cards=0, hands=0;
     std::fread(&version, 4, 1, f);
     std::fread(&bets, 4, 1, f);

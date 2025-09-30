@@ -4,9 +4,29 @@
 #include <array>
 #include <iostream>
 #include <cassert>
+#include <algorithm>
 #include <set>
+#include <cstring>
 
 namespace thai_poker {
+
+HandCluster::HandCluster(const std::string& filename)
+    : prob_table(ProbabilityTable::instance()), hand_table(HandTable::instance()), rng(2137) {
+    if (load(filename)) {
+        std::cerr << "HandClusters loaded" << std::endl;
+    }
+    else {
+        std::cerr << "Building HandClusters" << std::endl;
+        build_kmeans();
+        build_clusters_ds();
+        save(filename);
+    }
+}
+
+HandCluster& HandCluster::instance() {
+    static HandCluster singleton(std::string(DATA_DIR) + "/HCL0.bin");
+    return singleton;
+}
 
 double HandCluster::Point::distance(HandCluster::Point const& other) const {
     double dist = 0;
@@ -19,10 +39,10 @@ double HandCluster::Point::distance(HandCluster::Point const& other) const {
 }
 
 std::pair<int, Hand> HandCluster::sample_hand(Cluster const& cluster) {
-    int which = std::uniform_int_distribution<int>(0, cluster.blocks_prefix_sum.back())(rng);
+    int which = std::uniform_int_distribution<int>(0, cluster.blocks_prefix_sum.back() - 1)(rng);
 
     auto const& prefix_sums = cluster.blocks_prefix_sum;
-    int block = static_cast<int>(std::lower_bound(prefix_sums.begin(), prefix_sums.end(), which)
+    int block = static_cast<int>(std::upper_bound(prefix_sums.begin(), prefix_sums.end(), which)
                                 - prefix_sums.begin());
 
     if (block > 0) {
@@ -35,13 +55,9 @@ std::pair<int, Hand> HandCluster::sample_hand(Cluster const& cluster) {
     );
 }
 
-HandCluster::HandCluster() : prob_table(ProbabilityTable::instance()), hand_table(HandTable::instance()), rng(2137) {
-    build_kmeans();
-    build_clusters_ds();
-}
-
 void HandCluster::build_kmeans() {
     long long sum_all = 0;
+    long long sum_kmeans = 0;
     for (int hand_size = 0; hand_size <= HAND_SZ; hand_size++) {
         for (int opp_size = 0; hand_size + opp_size <= CARD_NB; opp_size++) {
             std::vector<Point> data;
@@ -60,11 +76,8 @@ void HandCluster::build_kmeans() {
                 }
             }
 
-            sum_all += unique_check.size();
-
             std::cerr << "hand_size: " << hand_size << " opp_size: " << opp_size << " data.size(): " << data.size() << std::endl;
             std::cerr << "unique_check.size(): " << unique_check.size() << std::endl;
-            std::cerr << "sum_all: " << sum_all << std::endl;
 
             std::vector<Point> kmeans;
             int kmeans_size = KMEANS_K;
@@ -83,6 +96,11 @@ void HandCluster::build_kmeans() {
                     kmeans.push_back(center);
                 }
             }
+
+            sum_all += unique_check.size();
+            sum_kmeans += kmeans_size;
+            std::cerr << "sum_all: " << sum_all << std::endl;
+            std::cerr << "sum_kmeans: " << sum_kmeans << std::endl;
 
             assert(kmeans_size == static_cast<int>(kmeans.size()));
             for (int iter = 0; iter < KMEANS_ITER; iter++) {
@@ -141,12 +159,12 @@ void HandCluster::build_kmeans() {
                 c.blocks[best_center].push_back(point);
             }
 
-            std::cerr << "opp_size: " << opp_size << std::endl;
-            std::cerr << "hand_size: " << hand_size << " final_error => " << final_error << std::endl;
+            std::cerr << "final_error => " << final_error << std::endl;
         }
     }
 
     std::cerr << "sum_all: " << sum_all << std::endl;
+    std::cerr << "sum_kmeans: " << sum_kmeans << std::endl;
     std::cerr << "DONE" << std::endl;
 }
 
@@ -170,8 +188,8 @@ GameSample HandCluster::sample(int h1_size, int h2_size) {
     Cluster const& c1 = clusters[h1_size][h2_size];
     Cluster const& c2 = clusters[h2_size][h1_size];
 
-    assert(c1.blocks.size() > 0);
-    assert(c2.blocks.size() > 0);
+    assert(!c1.blocks.empty());
+    assert(!c2.blocks.empty());
 
     int h1_block, h2_block;
     Hand h1_hand, h2_hand;
@@ -185,6 +203,111 @@ GameSample HandCluster::sample(int h1_size, int h2_size) {
         h1_hand, h1_block,
         h2_hand, h2_block
     };
+}
+
+void HandCluster::save(const std::string& path) const {
+    FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f) throw std::runtime_error("Cannot open " + path);
+
+    u32 hands = HAND_SZ + 1;
+    u32 cards = CARD_NB + 1;
+    std::fwrite("HCL0", 1, 4, f);
+    std::fwrite(&VERSION, sizeof(VERSION), 1, f);
+
+    std::fwrite(&hands, sizeof(hands), 1, f);
+    std::fwrite(&cards, sizeof(cards), 1, f);
+
+    for (int hand_size = 0; hand_size <= HAND_SZ; hand_size++) {
+        for (int opp_size = 0; opp_size <= CARD_NB; opp_size++) {
+            Cluster const& c = clusters[hand_size][opp_size];
+
+            u32 n_blocks = static_cast<u32>(c.blocks.size());
+            std::fwrite(&n_blocks, sizeof(n_blocks), 1, f);
+            for (auto const& block : c.blocks) {
+                u32 n_points = static_cast<u32>(block.size());
+                std::fwrite(&n_points, sizeof(n_points), 1, f);
+                for (auto const& p : block) {
+                    std::fwrite(p.p.data(), sizeof(double), BET_NB, f);
+                    std::fwrite(&p.hand_index, sizeof(int), 1, f);
+                    std::fwrite(&p.opp_size, sizeof(int), 1, f);
+                }
+            }
+
+            u32 n_prefix = static_cast<u32>(c.blocks_prefix_sum.size());
+            std::fwrite(&n_prefix, sizeof(n_prefix), 1, f);
+            std::fwrite(c.blocks_prefix_sum.data(), sizeof(int), n_prefix, f);
+
+            u32 n_centers = static_cast<u32>(c.centers.size());
+            std::fwrite(&n_centers, sizeof(n_centers), 1, f);
+            for (auto const& p : c.centers) {
+                std::fwrite(p.p.data(), sizeof(double), BET_NB, f);
+                std::fwrite(&p.hand_index, sizeof(int), 1, f);
+                std::fwrite(&p.opp_size, sizeof(int), 1, f);
+            }
+        }
+    }
+
+    std::fclose(f);
+}
+
+bool HandCluster::load(const std::string& path) {
+    FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return false;
+
+    char magic[4];
+    if (std::fread(magic, 1, 4, f) != 4 || std::memcmp(magic, "HCL0", 4) != 0) {
+        std::fclose(f);
+        return false;
+    }
+
+    u32 version=0, hands=0, cards=0;
+    std::fread(&version, 1, 4, f);
+    std::fread(&hands, 1, 4, f);
+    std::fread(&cards, 1, 4, f);
+
+    if (version != VERSION || hands != HAND_SZ+1 || cards != CARD_NB+1) {
+        std::fclose(f);
+        throw std::runtime_error("HandCluster::load: version/dim mismatch");
+    }
+
+    for (int hand_size = 0; hand_size <= HAND_SZ; hand_size++) {
+        for (int opp_size = 0; opp_size <= CARD_NB; opp_size++) {
+            Cluster& c = clusters[hand_size][opp_size];
+
+            u32 n_blocks;
+            std::fread(&n_blocks, sizeof(n_blocks), 1, f);
+            c.blocks.resize(n_blocks);
+            for (u32 b = 0; b < n_blocks; ++b) {
+                u32 n_points;
+                std::fread(&n_points, sizeof(n_points), 1, f);
+                c.blocks[b].resize(n_points);
+                for (u32 i = 0; i < n_points; ++i) {
+                    Point& p = c.blocks[b][i];
+                    std::fread(p.p.data(), sizeof(double), BET_NB, f);
+                    std::fread(&p.hand_index, sizeof(int), 1, f);
+                    std::fread(&p.opp_size, sizeof(int), 1, f);
+                }
+            }
+
+            u32 n_prefix;
+            std::fread(&n_prefix, sizeof(n_prefix), 1, f);
+            c.blocks_prefix_sum.resize(n_prefix);
+            std::fread(c.blocks_prefix_sum.data(), sizeof(int), n_prefix, f);
+
+            u32 n_centers;
+            std::fread(&n_centers, sizeof(n_centers), 1, f);
+            c.centers.resize(n_centers);
+            for (u32 i = 0; i < n_centers; ++i) {
+                Point& p = c.centers[i];
+                std::fread(p.p.data(), sizeof(double), BET_NB, f);
+                std::fread(&p.hand_index, sizeof(int), 1, f);
+                std::fread(&p.opp_size, sizeof(int), 1, f);
+            }
+        }
+    }
+
+    std::fclose(f);
+    return true;
 }
 
 } // namespace thai_poker
